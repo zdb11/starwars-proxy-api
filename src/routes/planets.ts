@@ -4,5 +4,5 @@ import { fetchData } from "../middleware/dataManager.js";
 
 export const planetsRouter: Router = express.Router();
 
-planetsRouter.route('/').get(checkCache, fetchData(true), persistCache)
-planetsRouter.route('/:id').get(checkCache, fetchData(false), persistCache)
+planetsRouter.route("/").get(checkCache, fetchData(true), persistCache);
+planetsRouter.route("/:id").get(checkCache, fetchData(false), persistCache);

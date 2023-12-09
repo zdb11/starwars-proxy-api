@@ -1,4 +1,4 @@
 export interface ErrorResponse extends Error {
-    statusCode:number;
-    message:string;
+    statusCode: number;
+    message: string;
 }
