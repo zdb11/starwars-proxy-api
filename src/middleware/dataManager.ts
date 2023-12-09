@@ -1,52 +1,68 @@
 import { NextFunction, Request, Response } from "express";
 import { asyncHandler } from "./asyncHandler.js";
 import { fetchDataLog } from "../utils/loggers.js";
-import axios from "axios";
+import axios, { AxiosResponse } from "axios";
 import { AllResourcesResponse } from "../interfaces/ResourceResponses.js";
-import { redisClient } from "../redis/redis.js";
-import { setRedisKeyValue } from "./cacheMechanism.js";
+import { getRedisKeyValue, setRedisKeyValue } from "./cacheMechanism.js";
 
 export const fetchData = (allResourcesRequest: boolean) => asyncHandler(async(req: Request, res: Response, next: NextFunction) => {
-    const reqQuery = { ...req.query };
+    const reqQuery: object = { ...req.query };
     fetchDataLog.debug(`Request query parameters ${JSON.stringify(reqQuery)}`);
-    const requestOriginalUrl = req.originalUrl;
-    const apiUrl = `${process.env.API_HOST}${requestOriginalUrl}`;
-    fetchDataLog.info(`Fetching data from URL: ${apiUrl}`);
-    const response = await axios.get(apiUrl);
-    if (response.statusText != "OK") {
-        return next({statusCode: 500, message:`Can't fetch data from ${apiUrl}`})
-    }
-    fetchDataLog.debug(`Fetched data from URL: ${apiUrl}, ${response.data}`);
-    let data = response.data;
+
+    const requestOriginalUrl: string = req.originalUrl;
+    const apiUrl: string = `${process.env.API_HOST}${requestOriginalUrl}`;
+    let data: object;
 
     if (Object.keys(reqQuery).length === 0 && allResourcesRequest) {
-        data = await unpaginateResponse(response.data);
+        data = await unpaginateResponse(apiUrl);
     } else {
-        data = overrideURLSInObject(data)
+        fetchDataLog.info(`Fetching data from URL: ${apiUrl}`);
+        const response: AxiosResponse = await axios.get(apiUrl);
+        if (response.statusText != "OK") {
+            return next({statusCode: 500, message:`Can't fetch data from ${apiUrl}`})
+        }
+        fetchDataLog.debug(`Fetched data from URL: ${apiUrl}, ${response.data}`);
+        data = overrideURLSInObject(response.data)
     }
-    req.resource = data
     res.status(200).send(data);
+
+    // Setting resource for next middleware
+    req.resource = data
     next();
 })
 
-const unpaginateResponse = async (data: AllResourcesResponse): Promise<AllResourcesResponse> => {
-    let results = [...data.results];
-    let refData = data;
-    while(refData.next) {
-        fetchDataLog.info(`Fetching data from URL: ${refData.next}`);
-        const response = await axios.get(refData.next);
+const unpaginateResponse = async (requestOriginalUrl: string): Promise<AllResourcesResponse> => {
+    // Setting as page #1 to start process from begginig for all resources queries
+    const firstPageURL: string = `${requestOriginalUrl}/?page=1`;
+    let next: string | null = firstPageURL;
+    let results: object[] = [];
+    while(next) {
+        // Checking if resource from 'next' url isn't already in cache
+        const redisResourceCacheKey: string = next.replace(`${process.env.API_HOST}`, "");
+        const cachedData: string | null = await getRedisKeyValue(redisResourceCacheKey);
+        if (cachedData) {
+            fetchDataLog.info(`Data already in cache for key: ${redisResourceCacheKey}, appending to all resource results.`);
+            const parsedCachedData: AllResourcesResponse = JSON.parse(cachedData);
+            results.push(...parsedCachedData.results);
 
-        if (response.statusText != "OK") {
-            throw Error(`Can't fetch data from ${refData.next}`);
+            // Checking if next page exist in cached results, then changing to API_HOST URL to fetch next page data
+            next = parsedCachedData.next ? parsedCachedData.next.replace(`http://localhost:${process.env.SERVER_PORT}`,`${process.env.API_HOST}`) : null;
+            continue
         }
-        fetchDataLog.debug(`Fetched data from URL: ${refData.next}, ${JSON.stringify(response.data)}`);
 
-        const redisDataToCacheKey = refData.next.replace(`${process.env.API_HOST}`, "");
+        fetchDataLog.info(`Fetching data from next page URL: ${next}`);
+        const response: AxiosResponse = await axios.get(next);
+        if (response.statusText != "OK") {
+            throw Error(`Can't fetch data from ${next}`);
+        }
+        fetchDataLog.debug(`Fetched data from URL: ${next}, ${JSON.stringify(response.data)}`);
+
         const overridedDataToCache = overrideURLSInObject(response.data) as AllResourcesResponse;
-        await setRedisKeyValue(redisDataToCacheKey, overridedDataToCache);
+        await setRedisKeyValue(redisResourceCacheKey, overridedDataToCache, false);
         
+        // Appending fetched data to all resource results
         results.push(...overridedDataToCache.results)
-        refData = response.data
+        next = response.data.next
     }
     fetchDataLog.debug(`Final unpaginated responses: ${JSON.stringify(results)}`);
 
@@ -54,8 +70,8 @@ const unpaginateResponse = async (data: AllResourcesResponse): Promise<AllResour
 } 
 
 const overrideURLSInObject = (data: object): object => {
-    const stringifyData = JSON.stringify(data);
+    const stringifyData: string = JSON.stringify(data);
     fetchDataLog.info("Overriding host on localhost.")
-    const replacedString = stringifyData.replaceAll(`${process.env.API_HOST}`, `http://localhost:${process.env.SERVER_PORT}`);
+    const replacedString: string = stringifyData.replaceAll(`${process.env.API_HOST}`, `http://localhost:${process.env.SERVER_PORT}`);
     return JSON.parse(replacedString)
 }

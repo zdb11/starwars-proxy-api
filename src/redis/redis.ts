@@ -2,6 +2,7 @@ import redis, { RedisClientType } from "redis";
 import { redisLog } from "../utils/loggers.js";
 import dotenv from 'dotenv';
 
+// Loading .env file before initialization of redis client
 dotenv.config();
 
 export const redisClient: RedisClientType = redis.createClient({
