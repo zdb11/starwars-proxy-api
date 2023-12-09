@@ -1,8 +1,9 @@
-export {};
+import { MiddlewareResource } from "../interfaces/Resources.ts";
+
 declare global {
     namespace Express {
         interface Request {
-            resource?: object;
+            resources?: Array<MiddlewareResource>;
         }
     }
 }

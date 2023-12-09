@@ -10,6 +10,7 @@ import { planetsRouter } from "./routes/planets.js";
 import { speciesRouter } from "./routes/species.js";
 import { starshipsRouter } from "./routes/starships.js";
 import { vehiclesRouter } from "./routes/vehicles.js";
+import { queryRouter } from "./routes/query.js";
 
 // Loading .env file before initialization of express
 dotenv.config();
@@ -30,6 +31,7 @@ app.use("/api/planets", planetsRouter);
 app.use("/api/species", speciesRouter);
 app.use("/api/starships", starshipsRouter);
 app.use("/api/vehicles", vehiclesRouter);
+app.use("/api/query", queryRouter);
 
 // Mount errorHandler as a last middleware
 app.use(errorHandler);

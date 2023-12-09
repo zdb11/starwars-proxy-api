@@ -2,33 +2,38 @@ import { NextFunction, Request, Response } from "express";
 import { redisClient } from "../redis/redis.js";
 import { cacheMechanismLog } from "../utils/loggers.js";
 import { asyncHandler } from "./asyncHandler.js";
+import { MiddlewareResource } from "../interfaces/Resources.js";
 
 export const checkCache = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const requestOriginalUrl: string = req.originalUrl;
-    const cachedResource: string | null = await getRedisKeyValue(requestOriginalUrl);
-    if (cachedResource === null) {
+    const keyExist: number = await redisClient.exists(requestOriginalUrl);
+    if (keyExist === 0) {
         next();
     } else {
+        const cachedResource = (await getRedisKeyValue(requestOriginalUrl)) as string;
         res.status(200).send(JSON.parse(cachedResource));
     }
 });
 export const persistCache = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const requestOriginalUrl: string = req.originalUrl;
-    const resource: object | undefined = req.resource;
-    if (resource === undefined) {
+    const resources: MiddlewareResource[] | undefined = req.resources;
+    if (resources === undefined) {
         cacheMechanismLog.info(
             `Resource from previous middleware is undefined, can't persist it in cache. Skipping caching.`,
         );
         return;
     }
-    await setRedisKeyValue(requestOriginalUrl, resource, false);
+    const asyncTasks: Promise<void>[] = resources.map((resource) =>
+        setRedisKeyValue(resource.key, resource.resource, false),
+    );
+    await Promise.all(asyncTasks);
+    next();
 });
 
 export const setRedisKeyValue = async (key: string, value: object, override: boolean): Promise<void> => {
     cacheMechanismLog.info(`Persisting resource on Redis key: ${key} with override on ${override}`);
     if (!override) {
-        const cachedResource: string | null = await getRedisKeyValue(key);
-        if (cachedResource !== null) {
+        const keyExist: number = await redisClient.exists(key);
+        if (keyExist === 1) {
             cacheMechanismLog.info(`Found resource on Redis key ${key}, not overriding it.`);
             return;
         }

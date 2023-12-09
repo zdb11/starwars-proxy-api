@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { asyncHandler } from "./asyncHandler.js";
 import { fetchDataLog } from "../utils/loggers.js";
 import axios, { AxiosResponse } from "axios";
-import { AllResourcesResponse } from "../interfaces/ResourceResponses.js";
+import { AllResourcesResponse, Film, MiddlewareResource, Resource } from "../interfaces/Resources.js";
 import { getRedisKeyValue, setRedisKeyValue } from "./cacheMechanism.js";
 
 export const fetchData = (allResourcesRequest: boolean) =>
@@ -12,7 +12,7 @@ export const fetchData = (allResourcesRequest: boolean) =>
 
         const requestOriginalUrl: string = req.originalUrl;
         const apiUrl: string = `${process.env.API_HOST}${requestOriginalUrl}`;
-        let data: object;
+        let data: Resource | AllResourcesResponse;
 
         if (Object.keys(reqQuery).length === 0 && allResourcesRequest) {
             data = await unpaginateResponse(apiUrl);
@@ -28,7 +28,7 @@ export const fetchData = (allResourcesRequest: boolean) =>
         res.status(200).send(data);
 
         // Setting resource for next middleware
-        req.resource = data;
+        req.resources = [{ key: requestOriginalUrl, resource: data }] as MiddlewareResource[];
         next();
     });
 
@@ -36,7 +36,7 @@ const unpaginateResponse = async (requestOriginalUrl: string): Promise<AllResour
     // Setting as page #1 to start process from begginig for all resources queries
     const firstPageURL: string = `${requestOriginalUrl}/?page=1`;
     let next: string | null = firstPageURL;
-    let results: object[] = [];
+    let results: Resource[] = [];
     while (next) {
         // Checking if resource from 'next' url isn't already in cache
         const redisResourceCacheKey: string = next.replace(`${process.env.API_HOST}`, "");
@@ -51,7 +51,7 @@ const unpaginateResponse = async (requestOriginalUrl: string): Promise<AllResour
             // Checking if next page exist in cached results, then changing to API_HOST URL to fetch next page data
             next = parsedCachedData.next
                 ? parsedCachedData.next.replace(
-                      `http://localhost:${process.env.SERVER_PORT}`,
+                      `http://${process.env.SERVER_HOST}:${process.env.SERVER_PORT}`,
                       `${process.env.API_HOST}`,
                   )
                 : null;
@@ -66,7 +66,9 @@ const unpaginateResponse = async (requestOriginalUrl: string): Promise<AllResour
         fetchDataLog.debug(`Fetched data from URL: ${next}, ${JSON.stringify(response.data)}`);
 
         const overridedDataToCache = overrideURLSInObject(response.data) as AllResourcesResponse;
-        await setRedisKeyValue(redisResourceCacheKey, overridedDataToCache, false);
+        // Here we know that there isn't cached resources for this key
+        // we can execute with override on true to avoid double cache check
+        await setRedisKeyValue(redisResourceCacheKey, overridedDataToCache, true);
 
         // Appending fetched data to all resource results
         results.push(...overridedDataToCache.results);
@@ -77,10 +79,50 @@ const unpaginateResponse = async (requestOriginalUrl: string): Promise<AllResour
     return { count: results.length, results: results } as AllResourcesResponse;
 };
 
+export const gatherRequiredResources = (urls: string[]) =>
+    asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+        let resourcesResults: MiddlewareResource[] = [];
+        const asyncTasks: Promise<void>[] = urls.map(async (url) => {
+            fetchDataLog.info(`Gathering data for resource from: ${url}`);
+            const result: AllResourcesResponse = await unpaginateResponse(url);
+            const redisResourceCacheKey: string = url.replace(`${process.env.API_HOST}`, "");
+            resourcesResults.push({ key: redisResourceCacheKey, resource: result });
+        });
+        await Promise.all(asyncTasks);
+        fetchDataLog.info(`Resources gathered for URLS: ${urls.toString()}`);
+        fetchDataLog.debug(
+            `Required resources results for URLS: ${urls.toString()}: ${JSON.stringify(resourcesResults)}`,
+        );
+        req.resources = resourcesResults as MiddlewareResource[];
+        next();
+    });
+
+export const queryCommonWords = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const allFilmsResource: string | null = await getRedisKeyValue(`/api/films`);
+    if (allFilmsResource === null) {
+        return next({ statusCode: 500, message: "Can't find films resources in Redis." });
+    }
+    const parsedFilmResult = JSON.parse(allFilmsResource).results as Film[];
+
+    // Need to think about this structure, will be changed in future
+    const wordsMap: Map<string, number> = new Map();
+    parsedFilmResult.forEach((film: Film) => {
+        const words = film.opening_crawl.split(/[^a-zA-Z0-9']/g).filter((word) => word.trim().length > 0);
+        words.forEach((word) => {
+            const count = wordsMap.get(word) || 0;
+            wordsMap.set(word, count + 1);
+        });
+    });
+
+    const uniqueWords: [string, number][] = Array.from(wordsMap.entries());
+    fetchDataLog.info(`UniqueWords: ${uniqueWords}`);
+    res.status(200).send(uniqueWords);
+});
+
 const overrideURLSInObject = (data: object): object => {
     const stringifyData: string = JSON.stringify(data);
     const pattern: string = `${process.env.API_HOST}`;
-    const target: string = `http://localhost:${process.env.SERVER_PORT}`;
+    const target: string = `http://${process.env.SERVER_HOST}:${process.env.SERVER_PORT}`;
     fetchDataLog.info(`Replacing ${pattern} to ${target}.`);
     const replacedString: string = stringifyData.replaceAll(pattern, target);
     return JSON.parse(replacedString);
