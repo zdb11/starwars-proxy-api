@@ -40,6 +40,7 @@ export const setRedisKeyValue = async (key: string, value: object, override: boo
 export const getRedisKeyValue = async(key: string): Promise<string | null> => {
     cacheMechanismLog.info(`Checking cache for key ${key}`);
     const cachedResource: string | null = await redisClient.get(key)
+    cacheMechanismLog.info(`Cache ${cachedResource === null ? 'not ': ''}found for key ${key}`);
     cacheMechanismLog.debug(`Cached resource for key ${key}: ${cachedResource}`);
     return cachedResource;
 } 

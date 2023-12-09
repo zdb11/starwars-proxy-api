@@ -5,6 +5,11 @@ import { redisClient } from './redis/redis.js';
 import { serverLog } from './utils/loggers.js';
 import { peopleRouter } from './routes/people.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { filmsRouter } from './routes/films.js';
+import { planetsRouter } from './routes/planets.js';
+import { speciesRouter } from './routes/species.js';
+import { starshipsRouter } from './routes/starships.js';
+import { vehiclesRouter } from './routes/vehicles.js';
 
 // Loading .env file before initialization of express
 dotenv.config();
@@ -13,11 +18,20 @@ const app: Express = express();
 
 app.use(express.json());
 
+// Additional log prettier in development mode
 if (process.env.ENVIRONMENT === "development") {
   app.use(morgan("dev"));
 }
 
-app.use("/api/people",peopleRouter);
+// Mounting routes
+app.use("/api/films", filmsRouter);
+app.use("/api/people", peopleRouter);
+app.use("/api/planets", planetsRouter);
+app.use("/api/species", speciesRouter);
+app.use("/api/starships", starshipsRouter);
+app.use("/api/vehicles", vehiclesRouter);
+
+// Mount errorHandler as a last middleware
 app.use(errorHandler);
 
 app.listen(process.env.SERVER_PORT, async () => {

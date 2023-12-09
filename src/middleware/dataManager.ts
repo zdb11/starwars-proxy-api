@@ -71,7 +71,9 @@ const unpaginateResponse = async (requestOriginalUrl: string): Promise<AllResour
 
 const overrideURLSInObject = (data: object): object => {
     const stringifyData: string = JSON.stringify(data);
-    fetchDataLog.info("Overriding host on localhost.")
-    const replacedString: string = stringifyData.replaceAll(`${process.env.API_HOST}`, `http://localhost:${process.env.SERVER_PORT}`);
+    const pattern: string = `${process.env.API_HOST}`
+    const target: string = `http://localhost:${process.env.SERVER_PORT}`;
+    fetchDataLog.info(`Replacing ${pattern} to ${target}.`)
+    const replacedString: string = stringifyData.replaceAll(pattern, target);
     return JSON.parse(replacedString)
 }
