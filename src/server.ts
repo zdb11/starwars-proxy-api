@@ -1,16 +1,16 @@
 import express, { Express, Request, Response } from "express";
 import dotenv from "dotenv";
 import morgan from "morgan";
-import { redisClient } from "./redis/redis.js";
-import { serverLog } from "./utils/loggers.js";
-import { peopleRouter } from "./routes/people.js";
-import { errorHandler } from "./middleware/errorHandler.js";
-import { filmsRouter } from "./routes/films.js";
-import { planetsRouter } from "./routes/planets.js";
-import { speciesRouter } from "./routes/species.js";
-import { starshipsRouter } from "./routes/starships.js";
-import { vehiclesRouter } from "./routes/vehicles.js";
-import { queryRouter } from "./routes/query.js";
+import { redisClient } from "./redis/redis";
+import { serverLog } from "./utils/loggers";
+import { peopleRouter } from "./routes/people";
+import { errorHandler } from "./middleware/errorHandler";
+import { filmsRouter } from "./routes/films";
+import { planetsRouter } from "./routes/planets";
+import { speciesRouter } from "./routes/species";
+import { starshipsRouter } from "./routes/starships";
+import { vehiclesRouter } from "./routes/vehicles";
+import { queryRouter } from "./routes/query";
 
 // Loading .env file before initialization of express
 dotenv.config();

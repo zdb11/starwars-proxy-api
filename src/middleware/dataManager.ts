@@ -1,9 +1,9 @@
 import { NextFunction, Request, Response } from "express";
-import { asyncHandler } from "./asyncHandler.js";
-import { fetchDataLog } from "../utils/loggers.js";
+import { asyncHandler } from "./asyncHandler";
+import { fetchDataLog } from "../utils/loggers";
 import axios, { AxiosResponse } from "axios";
-import { AllResourcesResponse, Film, MiddlewareResource, People, Resource } from "../interfaces/Resources.js";
-import { getRedisKeyValue, setRedisKeyValue } from "./cacheMechanism.js";
+import { AllResourcesResponse, Film, MiddlewareResource, People, Resource } from "../interfaces/Resources";
+import { getRedisKeyValue, setRedisKeyValue } from "./cacheMechanism";
 
 export const fetchData = (allResourcesRequest: boolean) =>
     asyncHandler(async (req: Request, res: Response, next: NextFunction) => {

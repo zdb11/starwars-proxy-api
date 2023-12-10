@@ -1,11 +1,11 @@
-import redis, { RedisClientType } from "redis";
-import { redisLog } from "../utils/loggers.js";
+import * as redis from "redis";
+import { redisLog } from "../utils/loggers";
 import dotenv from "dotenv";
 
 // Loading .env file before initialization of redis client
 dotenv.config();
 
-export const redisClient: RedisClientType = redis.createClient({
+export const redisClient: redis.RedisClientType = redis.createClient({
     url: `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
 });
 

@@ -1,6 +1,6 @@
 import express, { Router } from "express";
-import { checkCache, persistCache } from "../middleware/cacheMechanism.js";
-import { gatherRequiredResources, queryCommonWords, queryCommonHeros } from "../middleware/dataManager.js";
+import { checkCache, persistCache } from "../middleware/cacheMechanism";
+import { gatherRequiredResources, queryCommonWords, queryCommonHeros } from "../middleware/dataManager";
 
 export const queryRouter: Router = express.Router();
 

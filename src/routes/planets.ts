@@ -1,6 +1,6 @@
 import express, { Router } from "express";
-import { checkCache, persistCache } from "../middleware/cacheMechanism.js";
-import { fetchData } from "../middleware/dataManager.js";
+import { checkCache, persistCache } from "../middleware/cacheMechanism";
+import { fetchData } from "../middleware/dataManager";
 
 export const planetsRouter: Router = express.Router();
 

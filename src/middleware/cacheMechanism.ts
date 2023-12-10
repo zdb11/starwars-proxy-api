@@ -1,8 +1,8 @@
 import { NextFunction, Request, Response } from "express";
-import { redisClient } from "../redis/redis.js";
-import { cacheMechanismLog } from "../utils/loggers.js";
-import { asyncHandler } from "./asyncHandler.js";
-import { MiddlewareResource } from "../interfaces/Resources.js";
+import { redisClient } from "../redis/redis";
+import { cacheMechanismLog } from "../utils/loggers";
+import { asyncHandler } from "./asyncHandler";
+import { MiddlewareResource } from "../interfaces/Resources";
 
 export const checkCache = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
     const requestOriginalUrl: string = req.originalUrl;
