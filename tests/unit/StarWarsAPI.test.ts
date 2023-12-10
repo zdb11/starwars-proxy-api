@@ -1,3 +1,4 @@
+// Setting env vars before all imports
 const mockedExValue = "60";
 const mockedAPIHost = "targetAPI";
 const mockedServerHost = "serverAPI";
@@ -15,8 +16,7 @@ import axios from "axios";
 
 import * as cacheMechanism from "../../src/middleware/cacheMechanism";
 import * as dataManager from "../../src/middleware/dataManager";
-import { NextFunction, Request, Response } from "express";
-import supertest from "supertest";
+
 jest.mock("redis", () => ({
     createClient: jest.fn(() => ({
         set: jest.fn(),

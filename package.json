@@ -7,7 +7,7 @@
         "server": "node build/server",
         "build": "tsc",
         "dev": "concurrently \"npx tsc --watch\" \"nodemon build/server\"",
-        "test": "jest --detectOpenHandles"
+        "test": "npx jest --coverage"
     },
     "author": "Grzegorz Dziedzicki",
     "license": "ISC",

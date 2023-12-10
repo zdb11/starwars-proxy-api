@@ -4,6 +4,7 @@
     "inlineSourceMap": true,
     "outDir": "./build",
     "lib": ["ES2021.String"],
+    "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
