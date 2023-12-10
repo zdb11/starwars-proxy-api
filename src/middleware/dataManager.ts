@@ -20,12 +20,13 @@ export const fetchData = (allResourcesRequest: boolean) =>
             data = await unpaginateResponse(apiUrl);
         } else {
             fetchDataLog.info(`Fetching data from URL: ${apiUrl}`);
-            const response: AxiosResponse = await axios.get(apiUrl);
-            if (response.statusText != "OK") {
-                return next({ statusCode: 500, message: `Can't fetch data from ${apiUrl}` });
+            try {
+                const response: AxiosResponse = await axios.get(apiUrl);
+                fetchDataLog.debug(`Fetched data from URL: ${apiUrl}, ${response.data}`);
+                data = overrideURLSInObject(response.data);
+            } catch (error: any) {
+                return next({ statusCode: error.response.status, message: `Can't fetch data from ${apiUrl}` });
             }
-            fetchDataLog.debug(`Fetched data from URL: ${apiUrl}, ${response.data}`);
-            data = overrideURLSInObject(response.data);
         }
         res.status(200).send(data);
 
@@ -34,7 +35,7 @@ export const fetchData = (allResourcesRequest: boolean) =>
         next();
     });
 
-const unpaginateResponse = async (requestOriginalUrl: string): Promise<AllResourcesResponse> => {
+export const unpaginateResponse = async (requestOriginalUrl: string): Promise<AllResourcesResponse> => {
     // Setting as page #1 to start process from begginig for all resources queries
     const firstPageURL: string = `${requestOriginalUrl}/?page=1`;
     let next: string | null = firstPageURL;
@@ -63,7 +64,7 @@ const unpaginateResponse = async (requestOriginalUrl: string): Promise<AllResour
         fetchDataLog.info(`Fetching data from next page URL: ${next}`);
         const response: AxiosResponse = await axios.get(next);
         if (response.statusText != "OK") {
-            throw Error(`Can't fetch data from ${next}`);
+            throw new Error(`Can't fetch data from ${next}`);
         }
         fetchDataLog.debug(`Fetched data from URL: ${next}, ${JSON.stringify(response.data)}`);
 
