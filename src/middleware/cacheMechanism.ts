@@ -26,7 +26,6 @@ export const persistCache = asyncHandler(async (req: Request, res: Response, nex
         setRedisKeyValue(resource.key, resource.resource, false),
     );
     await Promise.all(asyncTasks);
-    next();
 });
 
 export const setRedisKeyValue = async (key: string, value: object, override: boolean): Promise<void> => {

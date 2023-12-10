@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { asyncHandler } from "./asyncHandler.js";
 import { fetchDataLog } from "../utils/loggers.js";
 import axios, { AxiosResponse } from "axios";
-import { AllResourcesResponse, Film, MiddlewareResource, Resource } from "../interfaces/Resources.js";
+import { AllResourcesResponse, Film, MiddlewareResource, People, Resource } from "../interfaces/Resources.js";
 import { getRedisKeyValue, setRedisKeyValue } from "./cacheMechanism.js";
 
 export const fetchData = (allResourcesRequest: boolean) =>
@@ -10,10 +10,12 @@ export const fetchData = (allResourcesRequest: boolean) =>
         const reqQuery: object = { ...req.query };
         fetchDataLog.debug(`Request query parameters ${JSON.stringify(reqQuery)}`);
 
+        // Modify targrt URL to hit API from .env
         const requestOriginalUrl: string = req.originalUrl;
         const apiUrl: string = `${process.env.API_HOST}${requestOriginalUrl}`;
         let data: Resource | AllResourcesResponse;
 
+        // Checking if this request is for all resources and without any query params
         if (Object.keys(reqQuery).length === 0 && allResourcesRequest) {
             data = await unpaginateResponse(apiUrl);
         } else {
@@ -82,6 +84,7 @@ const unpaginateResponse = async (requestOriginalUrl: string): Promise<AllResour
 export const gatherRequiredResources = (urls: string[]) =>
     asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
         let resourcesResults: MiddlewareResource[] = [];
+        // Creating async task for every resource url provided to middleware
         const asyncTasks: Promise<void>[] = urls.map(async (url) => {
             fetchDataLog.info(`Gathering data for resource from: ${url}`);
             const result: AllResourcesResponse = await unpaginateResponse(url);
@@ -98,25 +101,90 @@ export const gatherRequiredResources = (urls: string[]) =>
     });
 
 export const queryCommonWords = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    const allFilmsResource: string | null = await getRedisKeyValue(`/api/films`);
-    if (allFilmsResource === null) {
-        return next({ statusCode: 500, message: "Can't find films resources in Redis." });
-    }
-    const parsedFilmResult = JSON.parse(allFilmsResource).results as Film[];
+    const allFilmsMiddleware: MiddlewareResource[] | undefined = req.resources;
 
-    // Need to think about this structure, will be changed in future
+    // Double check if there is resources from previous middleware
+    if (allFilmsMiddleware === undefined || allFilmsMiddleware.length === 0) {
+        return next({ statusCode: 500, message: "Can't find films resources from previous middleware." });
+    }
+    const allFilmsResource = allFilmsMiddleware[0].resource as AllResourcesResponse;
+    const allFilmsResults = allFilmsResource.results as Film[];
+
+    // Creating map of all words occurrences
     const wordsMap: Map<string, number> = new Map();
-    parsedFilmResult.forEach((film: Film) => {
+    allFilmsResults.forEach((film: Film) => {
+        // Spliting opening by any characters beside words and numbers
         const words = film.opening_crawl.split(/[^a-zA-Z0-9']/g).filter((word) => word.trim().length > 0);
+        // Iterating words to persist occurrences
         words.forEach((word) => {
             const count = wordsMap.get(word) || 0;
             wordsMap.set(word, count + 1);
         });
     });
 
+    // Formating map to array
     const uniqueWords: [string, number][] = Array.from(wordsMap.entries());
-    fetchDataLog.info(`UniqueWords: ${uniqueWords}`);
+
+    // Soring array by occurrences descending
+    uniqueWords.sort((a, b) => b[1] - a[1]);
+
+    fetchDataLog.debug(`UniqueWords: ${uniqueWords}`);
     res.status(200).send(uniqueWords);
+
+    // Forward to persist resource in cache
+    req.resources = [{ key: req.originalUrl, resource: uniqueWords }];
+    next();
+});
+
+export const queryCommonHeros = asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
+    const commonHerosResults: MiddlewareResource[] | undefined = req.resources;
+
+    // Double check if there is resources from previous middleware
+    if (commonHerosResults === undefined || commonHerosResults.length < 2) {
+        return next({
+            statusCode: 500,
+            message: "Can't find all resources for quering common heros from previous middleware.",
+        });
+    }
+    // Because previous middleware is async pushing to resource array we need to check which element array is which resource
+    const allFilmsResource = (
+        commonHerosResults[0].key == "/api/films" ? commonHerosResults[0].resource : commonHerosResults[1].resource
+    ) as AllResourcesResponse;
+    const allPeopleResource = (
+        commonHerosResults[0].key == "/api/people" ? commonHerosResults[0].resource : commonHerosResults[1].resource
+    ) as AllResourcesResponse;
+    const allFilmsResults = allFilmsResource.results as Film[];
+    const allPeopleResults = allPeopleResource.results as People[];
+
+    // Creating map of all names occurrences
+    const nameCountMap: Map<number, string[]> = new Map();
+    let maxCount: number = 0;
+    allPeopleResults.forEach((people: People) => {
+        let count = 0;
+        allFilmsResults.forEach((film: Film) => {
+            if (film.opening_crawl.includes(people.name)) {
+                count++;
+            }
+        });
+        // After iterating by all films we push name to map value array with key as a count of occurrences
+        const nameMapArray: string[] = nameCountMap.get(count) || [];
+        nameMapArray.push(people.name);
+        nameCountMap.set(count, nameMapArray);
+
+        // Checking if current count is bigger than maxCount to keep tracking max occurrences
+        maxCount = count > maxCount ? count : maxCount;
+        fetchDataLog.debug(`Name: ${people.name}, count: ${count}`);
+    });
+
+    // Formating map to array
+    const mainHeros: string[] = nameCountMap.get(maxCount) ?? [];
+
+    fetchDataLog.debug(`Main heros: ${mainHeros}`);
+    res.status(200).send(mainHeros);
+
+    // Forward to persist resource in cache
+    req.resources = [{ key: req.originalUrl, resource: mainHeros }];
+    next();
 });
 
 const overrideURLSInObject = (data: object): object => {
